@@ -1,0 +1,160 @@
+from dotenv import load_dotenv
+from litellm import completion
+from typing import Generator
+from litellm.utils import (
+    ModelResponse
+)
+import time
+import json
+from lite_agents.core.message import ChatMessage, ChatRole
+from lite_agents.core.response import (
+    TextResponse, 
+    ToolResponse, 
+    TextResponseDelta, 
+    ToolResponseDelta,
+    LLMUsage
+)
+from lite_agents.core.tool import Tool
+
+load_dotenv()
+
+class LiteLLM:
+    """LiteLLM class to handle LLM generation with litellm.
+    
+    Args:
+        model (str): the model name
+        api_key (str, optional): the API key for authentication. Defaults to None.
+        system_prompt (str, optional): the system prompt to use. Defaults to None.
+    """
+    def __init__(
+        self,
+        model: str,
+        api_key: str = None,
+        system_prompt: str = None,
+    ) -> None:
+        """Initialize the LiteLLM class."""
+        self.model = model
+        self.system_prompt = system_prompt
+        self.api_key = api_key
+        self.usage = LLMUsage()
+        
+    def _prepare_messages(
+        self, 
+        messages: list[ChatMessage],
+    ) -> list[ChatMessage]:
+        """Prepare messages for the model.
+        
+        Args:
+            messages (list[ChatMessage]): the chat messages
+            
+        Returns:
+            list[ChatMessage]: the prepared chat messages
+        """
+        if self.system_prompt:
+            messages = [
+                ChatMessage(
+                    role=ChatRole.SYSTEM, 
+                    content=self.system_prompt
+                )
+            ] + messages
+        return messages       
+           
+    def generate(
+        self, 
+        messages: list[ChatMessage],
+        tools: list[Tool] = None,
+    ) -> TextResponse | ToolResponse:
+        """Generate a response from the model given the messages and optional tools.
+
+        Args:
+            messages (list[ChatMessage]): the chat message
+            tools (list[Tool], optional): the list of tools to use. Defaults to None.
+
+        Returns:
+            TextResponse | ToolResponse: the model's response (either text or tool call)
+        """
+
+        messages = self._prepare_messages(messages)
+
+        start_time = time.time()
+        response: ModelResponse = completion(
+            model=self.model,
+            api_key=self.api_key,
+            tools=[tool.to_dict() for tool in tools],
+            messages=[message.to_dict() for message in messages],
+            stream=False
+        )
+        
+        self.usage += LLMUsage(
+            model=self.model,
+            input_tokens=response.usage.prompt_tokens,
+            output_tokens=response.usage.completion_tokens,
+            time=time.time() - start_time
+        )
+        
+        if response.choices[0].finish_reason == "stop":
+            return TextResponse(
+                content=response.choices[0].message.content
+            )
+        # tool calls handling
+        elif response.choices[0].finish_reason == "tool_calls":
+            tool_call = response.choices[0].message.tool_calls[0]
+            name = tool_call.function.name
+            kwargs = json.loads(tool_call.function.arguments)  # to be parsed as JSON
+            return ToolResponse(
+                name=name,
+                kwargs=kwargs
+            )
+            
+        raise ValueError("Unknown finish reason.")
+    
+    def stream(
+        self,
+        messages: list[ChatMessage],
+        tools: list[Tool] = None,
+    ) -> Generator[TextResponseDelta | ToolResponseDelta]:
+        """Stream a response from the model given the messages and optional tools.
+
+        Args:
+            messages (list[ChatMessage]): the chat message
+            tools (list[Tool], optional): the list of tools to use. Defaults to None.
+        
+        Yields:
+            Generator[TextResponseDelta | ToolResponseDelta]: the model's response deltas (either text or tool call)
+        """    
+        
+        messages = self._prepare_messages(messages)
+
+        stream = completion(
+            model=self.model,
+            api_key=self.api_key,
+            tools=[tool.to_dict() for tool in tools],
+            messages=[message.to_dict() for message in messages],
+            stream=True,
+            stream_options={"include_usage": True}
+        )
+        start_time = time.time() 
+        for chunk in stream:
+            content = chunk.choices[0].delta.get("content")
+            tool_name, tool_args = None, None
+            if chunk.choices[0].delta.tool_calls:
+                tool_name = chunk.choices[0].delta.tool_calls[0].function.name
+                tool_args = chunk.choices[0].delta.tool_calls[0].function.arguments
+            if content:
+                yield TextResponseDelta(
+                    delta=content
+                )
+            if tool_name or tool_args:
+                yield ToolResponseDelta(
+                    name=tool_name,
+                    kwargs=tool_args
+                )
+            else:
+                if hasattr(chunk, "usage") and chunk.usage:
+                    self.usage = LLMUsage(
+                        model=self.model,
+                        input_tokens=chunk.usage.prompt_tokens,
+                        output_tokens=chunk.usage.completion_tokens,
+                        time=time.time() - start_time
+                    )
+     
