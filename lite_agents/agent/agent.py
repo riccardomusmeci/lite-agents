@@ -177,6 +177,7 @@ class Agent:
                 llm_response = self.llm.generate(messages=messages, tools=self.tools)
                 if isinstance(llm_response, TextResponse):
                     text_response = llm_response
+                    self.memory.add_agent_step(text_response, self.llm.usage)                    
                     yield text_response
                     return
                 elif isinstance(llm_response, ToolResponse):
@@ -195,10 +196,6 @@ class Agent:
                         tool_calls=[self._format_tool_response(tool_response)],
                     )
                 )
-                self.memory.add_agent_step(
-                    response=messages[-1],
-                    usage=self.llm.usage,
-                )
                 
                 # Append: tool message with the result
                 messages.append(
@@ -210,7 +207,10 @@ class Agent:
                         tool_kwargs=tool_response.kwargs,
                     )
                 )
-                self.memory.add_tool_step(response=messages[-1])
+                self.memory.add_tool_step(
+                    response=messages[-1],
+                    usage=self.llm.usage
+                )
                 
             # 3) Unexpected response type
             else:
