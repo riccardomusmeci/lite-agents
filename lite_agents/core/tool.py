@@ -151,7 +151,10 @@ class Tool:
             Dict[str, Any]: Tool metadata including name, description, and schema.
         """
         return {
-            "name": self.name,
-            "description": self.docstring,
-            "input_schema": self.input_schema
+            "type": "function",
+            "function": {
+                "name": self.name,
+                "description": self.docstring,
+                "parameters": self.input_schema
+            }
         }

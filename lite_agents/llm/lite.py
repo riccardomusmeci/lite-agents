@@ -6,7 +6,7 @@ from litellm.utils import (
 )
 import time
 import json
-from lite_agents.core.message import ChatMessage, ChatRole
+from lite_agents.core.message import ChatMessage
 from lite_agents.core.response import (
     TextResponse, 
     ToolResponse, 
@@ -24,41 +24,17 @@ class LiteLLM:
     Args:
         model (str): the model name
         api_key (str, optional): the API key for authentication. Defaults to None.
-        system_prompt (str, optional): the system prompt to use. Defaults to None.
     """
     def __init__(
         self,
         model: str,
         api_key: str = None,
-        system_prompt: str = None,
     ) -> None:
         """Initialize the LiteLLM class."""
         self.model = model
-        self.system_prompt = system_prompt
         self.api_key = api_key
         self.usage = LLMUsage()
-        
-    def _prepare_messages(
-        self, 
-        messages: list[ChatMessage],
-    ) -> list[ChatMessage]:
-        """Prepare messages for the model.
-        
-        Args:
-            messages (list[ChatMessage]): the chat messages
-            
-        Returns:
-            list[ChatMessage]: the prepared chat messages
-        """
-        if self.system_prompt:
-            messages = [
-                ChatMessage(
-                    role=ChatRole.SYSTEM, 
-                    content=self.system_prompt
-                )
-            ] + messages
-        return messages       
-           
+               
     def generate(
         self, 
         messages: list[ChatMessage],
@@ -67,16 +43,15 @@ class LiteLLM:
         """Generate a response from the model given the messages and optional tools.
 
         Args:
-            messages (list[ChatMessage]): the chat message
+            messages (list[ChatMessage]): the chat messages
             tools (list[Tool], optional): the list of tools to use. Defaults to None.
 
         Returns:
             TextResponse | ToolResponse: the model's response (either text or tool call)
         """
 
-        messages = self._prepare_messages(messages)
-
         start_time = time.time()
+        
         response: ModelResponse = completion(
             model=self.model,
             api_key=self.api_key,
@@ -85,7 +60,7 @@ class LiteLLM:
             stream=False
         )
         
-        self.usage += LLMUsage(
+        self.usage = LLMUsage(
             model=self.model,
             input_tokens=response.usage.prompt_tokens,
             output_tokens=response.usage.completion_tokens,
@@ -103,7 +78,8 @@ class LiteLLM:
             kwargs = json.loads(tool_call.function.arguments)  # to be parsed as JSON
             return ToolResponse(
                 name=name,
-                kwargs=kwargs
+                kwargs=kwargs,
+                id=tool_call.id
             )
             
         raise ValueError("Unknown finish reason.")
@@ -116,15 +92,13 @@ class LiteLLM:
         """Stream a response from the model given the messages and optional tools.
 
         Args:
-            messages (list[ChatMessage]): the chat message
+            messages (list[ChatMessage]): the chat messages
             tools (list[Tool], optional): the list of tools to use. Defaults to None.
         
         Yields:
             Generator[TextResponseDelta | ToolResponseDelta]: the model's response deltas (either text or tool call)
         """    
         
-        messages = self._prepare_messages(messages)
-
         stream = completion(
             model=self.model,
             api_key=self.api_key,
@@ -140,6 +114,7 @@ class LiteLLM:
             if chunk.choices[0].delta.tool_calls:
                 tool_name = chunk.choices[0].delta.tool_calls[0].function.name
                 tool_args = chunk.choices[0].delta.tool_calls[0].function.arguments
+                tool_id = chunk.choices[0].delta.tool_calls[0].id
             if content:
                 yield TextResponseDelta(
                     delta=content
@@ -147,7 +122,8 @@ class LiteLLM:
             if tool_name or tool_args:
                 yield ToolResponseDelta(
                     name=tool_name,
-                    kwargs=tool_args
+                    kwargs=tool_args,
+                    id=tool_id
                 )
             else:
                 if hasattr(chunk, "usage") and chunk.usage:
