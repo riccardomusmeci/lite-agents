@@ -216,7 +216,7 @@ class Agent:
             else:
                 raise ValueError("Unknown response type from LLM.")
 
-        # Se arriva qui, ha superato max_iterations
+        # Max iterations reached
         yield AgentReachedMaxSteps(
             content=f"Agent {self.name} reached the maximum number of iterations for answering the query."
         )
