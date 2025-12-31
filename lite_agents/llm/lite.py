@@ -9,9 +9,9 @@ import json
 from lite_agents.core.message import ChatMessage
 from lite_agents.core.response import (
     TextResponse, 
-    ToolResponse, 
+    ToolCall, 
     TextResponseDelta, 
-    ToolResponseDelta,
+    ToolCallDelta,
     LLMUsage
 )
 from lite_agents.core.tool import Tool
@@ -39,7 +39,7 @@ class LiteLLM:
         self, 
         messages: list[ChatMessage],
         tools: list[Tool] = None,
-    ) -> TextResponse | ToolResponse:
+    ) -> TextResponse | ToolCall:
         """Generate a response from the model given the messages and optional tools.
 
         Args:
@@ -47,7 +47,7 @@ class LiteLLM:
             tools (list[Tool], optional): the list of tools to use. Defaults to None.
 
         Returns:
-            TextResponse | ToolResponse: the model's response (either text or tool call)
+            TextResponse | ToolCall: the model's response (either text or tool call)
         """
 
         start_time = time.time()
@@ -76,7 +76,7 @@ class LiteLLM:
             tool_call = response.choices[0].message.tool_calls[0]
             name = tool_call.function.name
             kwargs = json.loads(tool_call.function.arguments)  # to be parsed as JSON
-            return ToolResponse(
+            return ToolCall(
                 name=name,
                 kwargs=kwargs,
                 id=tool_call.id
@@ -88,7 +88,7 @@ class LiteLLM:
         self,
         messages: list[ChatMessage],
         tools: list[Tool] = None,
-    ) -> Generator[TextResponseDelta | ToolResponseDelta]:
+    ) -> Generator[TextResponseDelta | ToolCallDelta]:
         """Stream a response from the model given the messages and optional tools.
 
         Args:
@@ -96,7 +96,7 @@ class LiteLLM:
             tools (list[Tool], optional): the list of tools to use. Defaults to None.
         
         Yields:
-            Generator[TextResponseDelta | ToolResponseDelta]: the model's response deltas (either text or tool call)
+            Generator[TextResponseDelta | ToolCallDelta]: the model's response deltas (either text or tool call)
         """    
         
         stream = completion(
@@ -120,7 +120,7 @@ class LiteLLM:
                     delta=content
                 )
             if tool_name or tool_args:
-                yield ToolResponseDelta(
+                yield ToolCallDelta(
                     name=tool_name,
                     kwargs=tool_args,
                     id=tool_id

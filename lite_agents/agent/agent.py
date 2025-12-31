@@ -6,15 +6,32 @@ from lite_agents.core.tool import Tool
 from lite_agents.core.message import ChatMessage, ChatRole
 from lite_agents.core.response import (
     TextResponse, 
-    ToolResponse, 
+    ToolCall,
+    ToolResult, 
     TextResponseDelta, 
-    ToolResponseDelta, 
+    ToolCallDelta, 
     LLMUsage,
     AgentReachedMaxSteps
 )
 from lite_agents.agent.memory import AgentMemory
 from lite_agents.core.response import LLMUsage
-    
+from typing_extensions import Union
+
+
+# AgentEvent (a tagged union)
+AgentEvent = Union[
+    TextResponseDelta,
+    TextResponse,
+    ToolCall,
+    ToolResult,
+    AgentReachedMaxSteps,
+]
+# Streaming Type
+AgentEventStream = Generator[AgentEvent, None, None]
+
+# Response Type
+AgentResponse = list[AgentEvent]
+
 class Agent:
     """Base agent class that loops over question -> tool call -> tool execution -> answer.
     
@@ -63,11 +80,11 @@ class Agent:
             self.memory.add_system_step(messages[0])            
         return messages
 
-    def _format_tool_response(self, tool_response: ToolResponse) -> dict[str, Any]:
-        """Format the ToolResponse into a tool call dictionary.
+    def _format_tool_response(self, tool_response: ToolCall) -> dict[str, Any]:
+        """Format the ToolCall into a tool call dictionary.
 
         Args:
-            tool_response (ToolResponse): the tool response to format
+            tool_response (ToolCall): the tool response to format
         Returns:
             dict[str, Any]: the formatted tool call dictionary
         """
@@ -108,44 +125,51 @@ class Agent:
         """
         return next((t for t in self.tools if t.name == name), None)
                     
-    def _run_tool(self, response: ToolResponse) -> Any:
+    def _run_tool(self, tool_call: ToolCall) -> ToolResult:
         """Execute the tool based on the LLM answer
 
         Args:
-            response (ToolResponse): tool response from LLM
+            tool_call (ToolCall): tool call from LLM
 
         Returns:
             Any: the tool result if successful, error dict otherwise
         """
-        tool = self._find_tool(response.name)
+        tool = self._find_tool(tool_call.name)
 
         if tool is None:
-            tool_result = {
-                "error": f"ToolNotFound: '{response.name}'",
-                "available_tools": [t.name for t in self.tools],
-            }
+            tool_result = ToolResult(
+                success=False,
+                result=None,
+                error=f"ToolNotFound: '{tool_call.name}'. Available tools: {[t.name for t in self.tools]}",
+            )
         else:
             try:
-                tool_result = tool.execute(**response.kwargs)
+                tool_output = tool.execute(**tool_call.kwargs)
+                tool_result = ToolResult(
+                    success=True,
+                    result=tool_output,
+                    error=None,
+                )
             except Exception as e:
-                tool_result = {
-                    "error": f"ToolExecutionError: {type(e).__name__}: {str(e)}",
-                    "tool": response.name,
-                }
+                tool_result = ToolResult(
+                    success=False,
+                    result=None,
+                    error=f"ToolExecutionError ({tool_call.name}): {type(e).__name__}: {str(e)}",
+                )
         return tool_result
 
-    def _run_loop(self, messages: list[ChatMessage]) -> Generator[TextResponseDelta | TextResponse]:
+    def _run_loop(self, messages: list[ChatMessage]) -> AgentEventStream:
         """Run the agentic loop with possible function calling. It works like this:
             1) calls LLM with messages + tools
             2) if TextResponse -> done
-            3) if ToolResponse -> execute tool, append tool call + tool result, repeat
+            3) if ToolCall -> execute tool, append tool call + tool result, repeat
         The loop continues until a TextResponse is returned or max_iterations is reached.
         
         Args:
             messages (list[ChatMessage]): the initial messages
             
         Yields:
-            Generator[TextResponseDelta | TextResponse]: the streaming text deltas or final text response
+            AgentEventStream: the streaming text deltas, tool calls, tool results, or final text response
             
         Raises:
             ValueError: if an unknown response type is received from the LLM
@@ -162,17 +186,23 @@ class Agent:
                     if isinstance(chunk, TextResponseDelta):
                         text_deltas.append(chunk)
                         yield chunk
-                    elif isinstance(chunk, ToolResponseDelta):
+                    elif isinstance(chunk, ToolCallDelta):
                         tool_deltas.append(chunk)
                     else:
                         raise TypeError(f"Unsupported chunk type from LLM stream: {type(chunk)}")
                 # If only text response was received, stop here
+                if text_deltas:
+                    self.memory.add_agent_step(
+                        response=TextResponse.from_deltas(text_deltas), 
+                        usage=self.llm.usage
+                    )
                 if text_deltas and not tool_deltas:
                     return
-                # If tool deltas was received, construct ToolResponse and continue iterating
+                # If tool deltas was received, construct ToolCall and continue iterating
                 if tool_deltas:
-                    # reconstruct ToolResponse from deltas
-                    tool_response = ToolResponse.from_deltas(tool_deltas)
+                    # reconstruct ToolCall from deltas
+                    tool_response = ToolCall.from_deltas(tool_deltas)
+                    yield tool_response
             else:
                 llm_response = self.llm.generate(messages=messages, tools=self.tools)
                 if isinstance(llm_response, TextResponse):
@@ -180,8 +210,9 @@ class Agent:
                     self.memory.add_agent_step(text_response, self.llm.usage)                    
                     yield text_response
                     return
-                elif isinstance(llm_response, ToolResponse):
+                elif isinstance(llm_response, ToolCall):
                     tool_response = llm_response
+                    yield tool_response
                 else:
                     raise TypeError(f"Unsupported response type from LLM: {type(llm_response)}")
             
@@ -201,7 +232,7 @@ class Agent:
                 messages.append(
                     ChatMessage(
                         role=ChatRole.TOOL,
-                        content=self._tool_result_as_str(tool_result),
+                        content=tool_result.to_str(),
                         tool_call_id=tool_response.id,
                         name=tool_response.name,
                         tool_kwargs=tool_response.kwargs,
@@ -211,6 +242,7 @@ class Agent:
                     response=messages[-1],
                     usage=self.llm.usage
                 )
+                yield tool_result
                 
             # 3) Unexpected response type
             else:
@@ -221,16 +253,19 @@ class Agent:
             content=f"Agent {self.name} reached the maximum number of iterations for answering the query."
         )
 
-    def run(self, messages: list[ChatMessage]) -> Generator[TextResponseDelta | TextResponse]:
+    def run(self, messages: list[ChatMessage]) -> AgentEventStream | AgentResponse:
         """Run the agent with the given messages.
     
         Args:
             messages (list[ChatMessage]): the input messages
             
-        Yields:
-            Generator[TextResponseDelta | TextResponse]: the streaming text deltas or final text response
+        Returns:
+            AgentEventStream | AgentResponse: the streaming generator or full response list
         """
         messages_for_run = self._prepare_messages(messages)
-        if self.stream:
-            return self._run_loop(messages_for_run)
-        return next(self._run_loop(messages_for_run))
+        if not self.stream:
+            responses = []
+            for step in self._run_loop(messages_for_run):
+                responses.append(step)
+            return responses
+        return self._run_loop(messages_for_run)
