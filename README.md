@@ -96,5 +96,5 @@ print()
 ### How it works 🧠
 
 1.  **Automatic Tools**: `lite-agents` inspects your Python function, reads types and docstrings, and automatically generates the JSON definition for the LLM.
-2.  **Agent Loop**: The `Agent` automatically handles the `ToolResponse` from the LLM, executes the Python function, and sends the result back to the model.
+2.  **Agent Loop**: The `Agent` automatically handles the `ToolCall` from the LLM, executes the Python function, and sends the result back to the model.
 3.  **Streaming**: In streaming mode, the agent yields text chunks as they arrive, while handling tool executions silently in the background.
