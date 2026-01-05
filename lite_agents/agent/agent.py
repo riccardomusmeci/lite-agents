@@ -10,27 +10,17 @@ from lite_agents.core.response import (
     ToolResult, 
     TextResponseDelta, 
     ToolCallDelta, 
-    LLMUsage,
-    AgentReachedMaxSteps
+    AgentReachedMaxSteps,
 )
 from lite_agents.agent.memory import AgentMemory
+from lite_agents.agent._base import (
+    BaseAgent, 
+    AgentEventStream, 
+    AgentResponse
+)
 
 
-# AgentEvent (a tagged union)
-AgentEvent = Union[
-    TextResponseDelta,
-    TextResponse,
-    ToolCall,
-    ToolResult,
-    AgentReachedMaxSteps,
-]
-# Streaming Type
-AgentEventStream = Generator[AgentEvent, None, None]
-
-# Response Type
-AgentResponse = list[AgentEvent]
-
-class Agent:
+class Agent(BaseAgent):
     """Base agent class that loops over question -> tool call -> tool execution -> answer.
     
     Args:
@@ -55,29 +45,18 @@ class Agent:
         memory: AgentMemory | None = None,
     ) -> None:
         """Initialize the Agent class."""
-        self.llm = llm
-        self.name = name
-        self.description = description
-        self.system_prompt = system_prompt
+        super().__init__(
+            name=name,
+            description=description,
+            llm=llm,
+            system_prompt=system_prompt,
+            memory=memory,
+            stream=stream
+        )
         self.tools = tools if tools is not None else []
-        self.stream = stream
         self.max_iterations = max_iterations
-        self.usage: list[LLMUsage] = []
-        self.memory: AgentMemory = memory or AgentMemory()
 
-    def _prepare_messages(self, messages: list[ChatMessage]) -> list[ChatMessage]:
-        """Prepare the messages for the LLM
 
-        Args:
-            messages (list[ChatMessage]): the input messages
-
-        Returns:
-            list[ChatMessage]: the prepared messages with system prompt if any
-        """
-        if self.system_prompt:
-            messages = [ChatMessage(role=ChatRole.SYSTEM, content=self.system_prompt)] + messages
-            self.memory.add_system_step(messages[0])            
-        return messages
 
     def _format_tool_response(self, tool_response: ToolCall) -> dict[str, Any]:
         """Format the ToolCall into a tool call dictionary.

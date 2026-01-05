@@ -8,20 +8,14 @@ from lite_agents.core.response import (
     LLMUsage
 )
 from lite_agents.agent.memory import AgentMemory
+from lite_agents.agent._base import BaseAgent, AgentEventStream, AgentEvent
 from lite_agents.db.db import VectorDB
 from lite_agents.logger import setup_logger
+import time
 
 logger = setup_logger()
 
-# RAGAgentEvent (simplified compared to AgentEvent for now)
-RAGAgentEvent = Union[
-    TextResponseDelta,
-    TextResponse,
-]
-# Streaming Type
-RAGAgentEventStream = Generator[RAGAgentEvent, None, None]
-
-class RAGAgent:
+class RAGAgent(BaseAgent):
     """RAG Agent that retrieves context from a VectorDB before answering.
     
     Args:
@@ -50,15 +44,16 @@ class RAGAgent:
         threshold: float = 0.8,
     ) -> None:
         """Initialize the RAGAgent class."""
-        self.llm = llm
+        super().__init__(
+            name=name,
+            description=description,
+            llm=llm,
+            system_prompt=system_prompt,
+            memory=memory,
+            stream=stream
+        )
         self.vector_db = vector_db
         self.embedding_function = embedding_function
-        self.name = name
-        self.description = description
-        self.system_prompt = system_prompt
-        self.stream = stream
-        self.usage: list[LLMUsage] = []
-        self.memory: AgentMemory = memory or AgentMemory()
         self.k = k
         self.threshold = threshold
 
@@ -77,7 +72,7 @@ class RAGAgent:
             n_results=self.k,
             threshold=self.threshold
         )
-        
+
         # add retrieval step to memory
         self.memory.add_retrieval_step(
             chunks=results or {}
@@ -89,7 +84,6 @@ class RAGAgent:
         context_parts = []
         for i, res in enumerate(results):
             content = res.get("content", "")
-            # metadata = res.get("metadata", {})
             # Format metadata if present
             context_parts.append(f"<item_{i+1}>\n{content}\n</item_{i+1}>")
         return "\n".join(context_parts)
@@ -110,9 +104,8 @@ class RAGAgent:
         # Get the last user message to use as query
         last_message = messages[-1]
         if last_message.role == ChatRole.USER:
-            query = last_message.content
+            query = last_message.content            
             context = self._retrieve_context(query)
-            
             # Augment the message with context
             augmented_content = f"## **Context**\n{context if context else 'EMPTY'}\n\n ## **User Question**\n{query}"
             # Create a new list to avoid modifying the original objects in place if they are reused
@@ -123,46 +116,42 @@ class RAGAgent:
         if self.system_prompt:
             messages = [ChatMessage(role=ChatRole.SYSTEM, content=self.system_prompt)] + messages
             self.memory.add_system_step(messages[0])
-        
-        for msg in messages:
-            print(f"{msg.role.value.upper()}: {msg.content}\n{'-'*40}")
-        
+            
         return messages
 
-    def run(self, messages: list[ChatMessage]) -> RAGAgentEventStream | TextResponse:
+    def run(self, messages: list[ChatMessage]) -> AgentEventStream | TextResponse:
         """Run the RAG agent with the given messages.
     
         Args:
             messages (list[ChatMessage]): the input messages
             
         Returns:
-            RAGAgentEventStream | TextResponse: the streaming generator or full response list
+            AgentEventStream | TextResponse: the streaming generator or full response list
         """
         # Save original message to memory
         self.memory.add_human_step(messages[-1])
         
         messages_for_run = self._prepare_messages(messages)
-           
         if self.stream:
             return self._stream_response(messages_for_run)
         else:
             return self._generate_response(messages_for_run)
 
-    def _stream_response(self, messages: list[ChatMessage]) -> RAGAgentEventStream:
+    def _stream_response(self, messages: list[ChatMessage]) -> AgentEventStream:
         """Stream the response from the LLM.
 
         Args:
             messages (list[ChatMessage]): the list of messages to send to the LLM.
 
         Yields:
-            RAGAgentEventStream: a generator yielding response deltas.
+            AgentEventStream: a generator yielding response deltas.
         """
         streamer = self.llm.stream(messages=messages)
         text_deltas = []
         for chunk in streamer:
             if isinstance(chunk, TextResponseDelta):
-                text_deltas.append(chunk)
                 yield chunk
+                text_deltas.append(chunk)
             else:
                 # Ignore tool calls or other types for now in RAGAgent
                 logger.warning("RAGAgent received unexpected chunk type during streaming: %s", type(chunk))

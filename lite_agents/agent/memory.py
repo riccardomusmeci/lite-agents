@@ -2,9 +2,12 @@ from lite_agents.core.message import ChatMessage, ChatRole
 from lite_agents.core.response import LLMUsage, TextResponse
 from lite_agents.llm import LiteLLM
 from lite_agents.prompts.memory import SUMMARIZE_MEMORY_PROMPT
+from lite_agents.logger import setup_logger
 from dataclasses import dataclass, field
 from typing import Any
 import json
+
+logger = setup_logger()
 
 @dataclass
 class AnswerStep:
@@ -38,7 +41,22 @@ class HumanStep:
         return HumanStep(
             message=data["message"]
         )
+
+@dataclass
+class RetryStep:
+    reason: str
     
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "reason": self.reason,
+        }
+        
+    @staticmethod
+    def from_dict(data: dict[str, Any]) -> "RetryStep":
+        return RetryStep(
+            reason=data["reason"]
+        )
+
 @dataclass
 class ToolStep:
     name: str
@@ -79,15 +97,42 @@ class SytemStep:
         )
 
 @dataclass
+class ChiefStep:
+    reason: str
+    agent: str
+    raw_response: str
+    expanded_query: str | None
+    usage: LLMUsage | None = None
+    
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "reason": self.reason,
+            "agent": self.agent,
+            "raw_response": self.raw_response,
+            "expanded_query": self.expanded_query,
+            "usage": self.usage.to_dict() if self.usage else None,
+        }
+        
+    @staticmethod
+    def from_dict(data: dict[str, Any]) -> "ChiefStep":
+        return ChiefStep(
+            reason=data["reason"],
+            agent=data["agent"],
+            raw_response=data["raw_response"],
+            expanded_query=data.get("expanded_query"),
+            usage=LLMUsage.from_dict(data["usage"]) if data.get("usage") else None,
+        )
+
+@dataclass
 class AgentMemory:
     """Agent memory class
     
     Attributes:
-        steps (list[SytemStep | AnswerStep | HumanStep | ToolStep]): list of interaction steps.
+        steps (list[SytemStep | AnswerStep | HumanStep | ToolStep | ChiefStep]): list of interaction steps.
         summary (str): concise summary of the memory. It is filled when summarize() is called.
         usage (LLMUsage | None): usage information of the memory. It is filled when summarize() is called.
     """
-    steps: list[SytemStep | AnswerStep | HumanStep | ToolStep] = field(default_factory=list)
+    steps: list[SytemStep | AnswerStep | HumanStep | ToolStep | ChiefStep] = field(default_factory=list)
     summary: str = "" 
     usage: LLMUsage | None = None
     
@@ -135,6 +180,36 @@ class AgentMemory:
                 usage=None
             )
         )
+
+    def add_chief_step(self, reason: str, agent: str, raw_response: str, expanded_query: str | None, usage: LLMUsage | None = None) -> None:
+        """Add a chief step to the memory.
+        
+        Args:
+            reason (str): the reasoning behind the routing.
+            agent (str): the name of the agent routed to.
+            raw_response (str): the output received from the agent.
+            expanded_query (str | None): the expanded query used for routing.
+            usage (LLMUsage | None, optional): the usage of the chief LLM. Defaults to None.
+        """
+        self.steps.append(
+            ChiefStep(
+                reason=reason,
+                agent=agent,
+                raw_response=raw_response,
+                expanded_query=expanded_query,
+                usage=usage
+            )
+        )
+        
+    def add_retry_step(self, message: ChatMessage) -> None:
+        """Add a retry step to the memory as a HumanStep.
+        
+        Args:
+            message (ChatMessage): the retry message from the user.
+        """
+        if message.role != ChatRole.USER:
+            raise ValueError("RetryStep message must have role USER.")
+        self.steps.append(RetryStep(reason=message.content))
     
     def to_dict(self) -> dict[str, Any]:
         """Convert the memory to a dictionary representation."""
@@ -182,6 +257,10 @@ class AgentMemory:
                 memory.steps.append(HumanStep.from_dict(step_content))
             elif step_type == "ToolStep":
                 memory.steps.append(ToolStep.from_dict(step_content))
+            elif step_type == "ChiefStep":
+                memory.steps.append(ChiefStep.from_dict(step_content))
+            elif step_type == "RetryStep":
+                memory.steps.append(RetryStep.from_dict(step_content))
             else:
                 raise ValueError(f"Unknown step type: {step_type}")
             
@@ -227,9 +306,7 @@ class AgentMemory:
         
         summary_steps = []
         for step in self.steps:
-            if isinstance(step, SytemStep):
-                continue
-            elif isinstance(step, AnswerStep):
+            if isinstance(step, AnswerStep):
                 summary_steps.append({
                     "type": "AnswerStep",
                     "data": {
@@ -253,6 +330,10 @@ class AgentMemory:
                         "result": step.result,
                     }
                 })
+            else:
+                # Skip other step types for summarization
+                logger.debug(f"Skipping step type {type(step)} in summarization")
+                continue
                 
         message = ChatMessage(
             role=ChatRole.USER,
