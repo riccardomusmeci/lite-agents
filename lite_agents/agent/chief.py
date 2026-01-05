@@ -1,6 +1,3 @@
-
-
-
 from __future__ import annotations
 import logging
 
@@ -12,7 +9,6 @@ from lite_agents.agent._base import (
 from lite_agents.core.message import ChatMessage, ChatRole
 from lite_agents.agent.memory import AgentMemory
 from lite_agents.prompts.chief import (
-    CHIEF_SYSTEM_PROMPT, 
     CHIEF_SYSTEM_PROMPT_WITH_EXPANSION, 
     CHIEF_SYSTEM_PROMPT_NO_EXPANSION
 )
@@ -118,6 +114,8 @@ class AgentChief(BaseAgent):
         """
         # Routing Logic
         chief_messages = self._prepare_messages(messages)
+        
+        self.memory.add_human_step(messages[-1])
 
         fail = None
         # Retry loop

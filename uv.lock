@@ -840,6 +840,15 @@ wheels = [
 ]
 
 [[package]]
+name = "json-repair"
+version = "0.49.0"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/9f/db/5e6671347db8a55a52aec330017b7d2f0c4d49ac4b374018a912619dd2ee/json_repair-0.49.0.tar.gz", hash = "sha256:6a57563384da509c231a27bd87503eeaf5964f38d11a2b5ac808fe91431e1e61", size = 35108, upload-time = "2025-08-10T08:39:14.892Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/2c/2a/d307b12ece7e3c82bade236b02621219310bb87ebd06ff9b6e3185bac7b8/json_repair-0.49.0-py3-none-any.whl", hash = "sha256:84b39814689d6b48c403f1fe6abdae976b64ffe2dc0ba5ad61a199bd23354391", size = 26549, upload-time = "2025-08-10T08:39:13.627Z" },
+]
+
+[[package]]
 name = "jsonschema"
 version = "4.25.1"
 source = { registry = "https://pypi.org/simple" }
@@ -893,6 +902,7 @@ version = "0.1.0"
 source = { editable = "." }
 dependencies = [
     { name = "chromadb" },
+    { name = "json-repair" },
     { name = "litellm" },
     { name = "loguru" },
     { name = "streamlit" },
@@ -902,6 +912,7 @@ dependencies = [
 [package.metadata]
 requires-dist = [
     { name = "chromadb" },
+    { name = "json-repair", specifier = "==0.49.0" },
     { name = "litellm" },
     { name = "loguru", specifier = ">=0.7.3" },
     { name = "streamlit" },
