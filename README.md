@@ -4,7 +4,7 @@ A lightweight agent framework using lite-llm.
 
 ## 🚀 Quick Start
 
-Here is a simple example of how to use `lite-agents` to create an agent with custom tools (Function Calling).
+Here is a simple example of how to use `lite-agents` to use litellm for simple question and answer.
 
 ### 1. Configuration ⚙️
 
@@ -17,7 +17,7 @@ If you just need a simple completion without the agentic loop:
 ```python
 import os
 from dotenv import load_dotenv
-from lite_agents.llm.lite import LiteLLM
+from lite_agents.llm import LiteLLM
 from lite_agents.core.message import ChatRole, ChatMessage
 
 load_dotenv()
@@ -56,7 +56,7 @@ def book_parking_spot(parking_id: str, spot_id: str, user_id: str, date: str) ->
 #### Initialize the Agent 🤖
 
 ```python
-from lite_agents.agent.agent import Agent
+from lite_agents.agent import Agent
 
 agent = Agent(
     llm=llm,
@@ -110,8 +110,8 @@ Once you have your knowledge base ready, you can spin up a `RAGAgent`.
 You need to define your embedding function (must match the one used for ingestion) and connect to the existing Vector DB.
 
 ```python
-from lite_agents.llm.lite import LiteLLM
-from lite_agents.agent.rag import RAGAgent
+from lite_agents.llm import LiteLLM
+from lite_agents.agent import RAGAgent
 from lite_agents.db import ChromaDB
 from litellm import embedding
 from pathlib import Path
