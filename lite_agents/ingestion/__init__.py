@@ -2,13 +2,13 @@ from __future__ import annotations
 import re
 import json
 from pathlib import Path
-from typing import List, Dict, Callable, Any
+from typing import Callable, Any
 
 from lite_agents.llm.lite import LiteLLM
 from lite_agents.core.message import ChatMessage, ChatRole
 from lite_agents.core.chunk import DocumentChunk
 from lite_agents.db.db import VectorDB
-from lite_agents.prompt.ingestion import get_document_summary_prompt, get_chunk_context_prompt
+from lite_agents.prompts.ingestion import get_document_summary_prompt, get_chunk_context_prompt
 from lite_agents.logger import setup_logger
 from lite_agents.readers import get_reader_for_file
 import time
@@ -25,7 +25,7 @@ class LiteIngestion:
     Args:
         llm (LiteLLM): the LiteLLM instance for context generation
         vector_db (VectorDB): the vector database instance
-        embedding_function (Callable[[List[str]], List[List[float]]]): function to create embeddings
+        embedding_function (Callable[[list[str]], list[list[float]]]): function to create embeddings
         chunk_size (int, optional): target size of each chunk in characters. Defaults to 800.
         chunk_overlap (int, optional): overlap between consecutive chunks. Defaults to 200.
         add_context (bool, optional): whether to add contextual retrieval. Defaults to True.
@@ -34,7 +34,7 @@ class LiteIngestion:
         self,
         llm: LiteLLM,
         vector_db: VectorDB,
-        embedding_function: Callable[[List[str]], List[List[float]]],
+        embedding_function: Callable[[list[str]], list[list[float]]],
         chunk_size: int = 800,
         chunk_overlap: int = 200,
         add_context: bool = True,
@@ -46,16 +46,16 @@ class LiteIngestion:
         self.chunk_size = chunk_size
         self.chunk_overlap = chunk_overlap
         self.add_context = add_context
-        self._document_summaries: Dict[str, str] = {}
+        self._document_summaries: dict[str, str] = {}
     
-    def chunk_text(self, text: str) -> List[str]:
+    def chunk_text(self, text: str) -> list[str]:
         """Split text into chunks with overlap, respecting paragraphs.
         
         Args:
             text (str): the text to chunk
             
         Returns:
-            List[str]: list of text chunks
+            list[str]: list of text chunks
         """
         if len(text) <= self.chunk_size:
             return [text]
@@ -149,14 +149,14 @@ class LiteIngestion:
         response = self.llm.generate(messages=messages, tools=None)
         return response.content.strip()
 
-    def process_document(self, file_path: Path) -> List[DocumentChunk]:
+    def process_document(self, file_path: Path) -> list[DocumentChunk]:
         """Process a single document and create chunks with optional context.
         
         Args:
             file_path (Path): path to the document
             
         Returns:
-            List[DocumentChunk]: list of processed chunks
+            list[DocumentChunk]: list of processed chunks
         """
         logger.info(f"📄 Processing document: {file_path.name}")
         
@@ -234,7 +234,7 @@ class LiteIngestion:
         self,
         directory: Path,
         file_pattern: str = "*.md"
-    ) -> List[DocumentChunk]:
+    ) -> list[DocumentChunk]:
         """Process all documents in a directory.
         
         Args:
@@ -242,7 +242,7 @@ class LiteIngestion:
             file_pattern (str, optional): glob pattern for files. Defaults to "*.md".
             
         Returns:
-            List[DocumentChunk]: list of all processed chunks
+            list[DocumentChunk]: list of all processed chunks
         """
         files = sorted(directory.glob(file_pattern))
         logger.info(f"📂 Found {len(files)} files in {directory}")
@@ -261,11 +261,11 @@ class LiteIngestion:
             
         return all_chunks
 
-    def ingest_chunks(self, chunks: List[DocumentChunk]) -> None:
+    def ingest_chunks(self, chunks: list[DocumentChunk]) -> None:
         """Ingest chunks into the vector database.
         
         Args:
-            chunks (List[DocumentChunk]): list of chunks to ingest
+            chunks (list[DocumentChunk]): list of chunks to ingest
         """
         logger.info(f"🚀 Starting ingestion of {len(chunks)} chunks")
         
@@ -308,14 +308,14 @@ class LiteIngestion:
         self.ingest_chunks(chunks)
         return len(chunks)
     
-    def get_statistics(self, chunks: List[DocumentChunk]) -> Dict[str, Any]:
+    def get_statistics(self, chunks: list[DocumentChunk]) -> dict[str, Any]:
         """Get statistics about the processed chunks.
         
         Args:
-            chunks (List[DocumentChunk]): list of chunks
+            chunks (list[DocumentChunk]): list of chunks
             
         Returns:
-            Dict[str, Any]: statistics dictionary
+            dict[str, Any]: statistics dictionary
         """
         docs = {}
         for chunk in chunks:
@@ -339,14 +339,14 @@ class LiteIngestion:
     
     def save_chunks_to_json(
         self,
-        chunks: List[DocumentChunk],
+        chunks: list[DocumentChunk],
         output_path: Path | str,
         pretty: bool = True
     ) -> None:
         """Save chunks to a JSON file for easy visualization.
         
         Args:
-            chunks (List[DocumentChunk]): list of chunks to save
+            chunks (list[DocumentChunk]): list of chunks to save
             output_path (Path | str): path to the output JSON file
             pretty (bool, optional): whether to use pretty formatting. Defaults to True.
         """
@@ -365,14 +365,14 @@ class LiteIngestion:
         logger.info(f"✅ Chunks saved successfully to {output_path}")
     
     @staticmethod
-    def load_chunks_from_json(input_path: Path | str) -> List[DocumentChunk]:
+    def load_chunks_from_json(input_path: Path | str) -> list[DocumentChunk]:
         """Load chunks from a JSON file.
         
         Args:
             input_path (Path | str): path to the input JSON file
             
         Returns:
-            List[DocumentChunk]: list of loaded chunks
+            list[DocumentChunk]: list of loaded chunks
         """
         input_path = Path(input_path)
         

@@ -1,4 +1,4 @@
-from typing import List, Optional, Dict, Any
+from typing import Any
 import uuid
 try:
     import chromadb
@@ -8,16 +8,25 @@ except ImportError:
 
 from lite_agents.db.db import VectorDB
 
+DEFAULT_METADATA = {"hnsw:space": "cosine"}
+
 class ChromaDB(VectorDB):
     """ChromaDB implementation of VectorDB.
     
     Args:
-        collection_name (str): Name of the collection.
-        path (str): Path to store the database (if persistent).
-        persistent (bool): Whether to use persistent storage or in-memory.
+        collection_name (str): name of the collection.
+        path (str): path to store the database (if persistent).
+        persistent (bool): whether to use persistent storage or in-memory.
+        metadata (dict | None): metadata for the collection. If None, defaults are used (hnsw:space = cosine). Defaults to None.
     """
 
-    def __init__(self, collection_name: str = "knowledge_base", path: str = "./chroma_db", persistent: bool = True):
+    def __init__(
+        self, 
+        collection_name: str = "knowledge_base", 
+        path: str = "./chroma_db", 
+        persistent: bool = True, 
+        metadata: dict | None = None
+    ) -> None:
         """Initialize ChromaDB."""
         if chromadb is None:
             raise ImportError("chromadb is not installed. Please install it with `pip install chromadb`.")
@@ -27,22 +36,25 @@ class ChromaDB(VectorDB):
         else:
             self.client = chromadb.Client(settings=Settings(anonymized_telemetry=False))
             
-        self.collection = self.client.get_or_create_collection(name=collection_name)
+        self.collection = self.client.get_or_create_collection(
+            name=collection_name,
+            metadata=metadata or DEFAULT_METADATA
+        )
 
     def add_documents(
         self, 
-        documents: List[str],
-        embeddings: List[List[float]], 
-        metadatas: Optional[List[dict]] = None, 
-        ids: Optional[List[str]] = None
+        documents: list[str],
+        embeddings: list[list[float]], 
+        metadatas: list[dict] | None = None, 
+        ids: list[str] | None = None
     ) -> None:
         """Add documents to the ChromaDB collection.
 
         Args:
-            documents (List[str]): List of text documents to add.
-            embeddings (List[List[float]]): List of embeddings corresponding to the documents.
-            metadatas (Optional[List[dict]], optional): List of metadata dictionaries. Defaults to None.
-            ids (Optional[List[str]], optional): List of document IDs. If None, UUIDs are generated. Defaults to None.
+            documents (list[str]): list of text documents to add.
+            embeddings (list[list[float]]): list of embeddings corresponding to documents.
+            metadatas (list[dict] | None, optional): list of metadata dictionaries corresponding to documents. Defaults to None.
+            ids (list[str] | None, optional): list of IDs for the documents. Defaults to None.
         """
         if ids is None:
             ids = [str(uuid.uuid4()) for _ in documents]
@@ -54,45 +66,42 @@ class ChromaDB(VectorDB):
             ids=ids
         )
 
-    def query(
-        self, 
-        query_embeddings: List[float], 
-        n_results: int = 5,
-        max_distance: Optional[float] = None
-    ) -> List[Dict[str, Any]]:
+    
+    def query(self, query_embeddings: list[float], n_results: int = 5, threshold: float | None = None) -> list[dict[str, Any]]:
         """Query the ChromaDB collection for relevant documents.
 
         Args:
-            query_embeddings (List[float]): The embedding vector of the query.
-            n_results (int, optional): Number of results to return. Defaults to 5.
-            max_distance (Optional[float], optional): Maximum distance for results. Defaults to None.
+            query_embeddings (list[float]): the embedding vector of the query.
+            n_results (int, optional): number of results to return. Defaults to 5.
+            threshold (float, optional): similarity threshold for filtering results. Defaults to None.
 
         Returns:
-            List[Dict[str, Any]]: A list of dictionaries containing 'content', 'metadata', and 'distance' for each result.
+            list[dict[str, Any]]: a list of dictionaries containing 'content', 'metadata', and 'distance' for each result.
         """
+        
+        threshold = threshold if threshold is not None else 0.0
+        
         results = self.collection.query(
             query_embeddings=[query_embeddings],
             n_results=n_results,
             include=["documents", "metadatas", "distances"],
         )
-        
-        # results['documents'] is a list of lists (one list per query)
-        if not results['documents']:
+
+        if not results['documents'] or not results['documents'][0]:
             return []
-            
-        docs = results["documents"][0]
-        metas = results["metadatas"][0]
-        dists = results["distances"][0]
-        
+
         formatted_results = []
-        for doc, meta, dist in zip(docs, metas, dists):
-            if max_distance is not None and dist > max_distance:
-                continue
-            formatted_results.append({
-                "content": doc,
-                "metadata": meta,
-                "distance": dist
-            })
+        for doc, meta, dist in zip(results["documents"][0], results["metadatas"][0], results["distances"][0]):
+            # Convert distance to similarity (assuming cosine distance)
+            similarity = max(0, 1 - dist)
             
+            if similarity >= threshold:
+                formatted_results.append({
+                    "content": doc,
+                    "metadata": meta,
+                    "similarity": similarity # changed from distance to similarity
+                })
+                
         return formatted_results
+
 
