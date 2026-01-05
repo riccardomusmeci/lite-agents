@@ -1,16 +1,12 @@
 # lite-agents 🤖☁️
 
-A lightweight agent framework using lite-llm.
+A lightweight agent framework using lite-llm. 
 
-## 🚀 Quick Start
-
-Here is a simple example of how to use `lite-agents` to use litellm for simple question and answer.
-
-### 1. Configuration ⚙️
+## 1. Configuration ⚙️
 
 Ensure your API keys are configured in your environment (e.g., in a `.env` file).
 
-### 2. Basic Usage (LiteLLM) ⚡️
+## 2. Basic Usage (LiteLLM) ⚡️
 
 If you just need a simple completion without the agentic loop:
 
@@ -30,11 +26,11 @@ response = llm.generate(
 print(response.content)
 ```
 
-### 3. Agent & Tools (The Loop) 🔄
+## 3. Agent & Tools (The Loop) 🔄
 
 The `Agent` class handles the "reasoning loop": it calls the LLM, executes tools if requested, and feeds the result back to the LLM until a final answer is reached.
 
-#### Define a Tool 🛠️
+### Define a Tool 🛠️
 
 ```python
 from lite_agents.core.tool import Tool
@@ -53,7 +49,7 @@ def book_parking_spot(parking_id: str, spot_id: str, user_id: str, date: str) ->
     return f"✅ Booked spot {spot_id} at parking {parking_id} for date {date} - User: {user_id}"
 ```
 
-#### Initialize the Agent 🤖
+### Initialize the Agent 🤖
 
 ```python
 from lite_agents.agent import Agent
@@ -68,7 +64,7 @@ agent = Agent(
 )
 ```
 
-#### Run (Standard) 🏃
+### Run (Standard) 🏃
 
 ```python
 response = agent.run(
@@ -77,7 +73,7 @@ response = agent.run(
 print("🤖 Agent:", response.content)
 ```
 
-#### Run (Streaming) 🌊
+### Run (Streaming) 🌊
 
 ```python
 # Enable streaming
@@ -99,13 +95,13 @@ print()
 ```
 
 
-### 4. RAG Agent 🗂️
+## 4. RAG Agent 🗂️
 
 Before going into the RAG agent, go check the [example](examples/rag.md) on how to easily ingest documents with `lite-agents` with ChromaDB.
 
 Once you have your knowledge base ready, you can spin up a `RAGAgent`.
 
-#### Setup ⚙️
+### Setup ⚙️
 
 You need to define your embedding function (must match the one used for ingestion) and connect to the existing Vector DB.
 
@@ -130,7 +126,7 @@ def create_embeddings(text: str) -> list[float]:
     return response.data[0]['embedding']
 ```
 
-#### Initialize RAG Agent 🤖
+### Initialize RAG Agent 🤖
 
 ```python
 rag_agent = RAGAgent(
@@ -146,7 +142,7 @@ rag_agent = RAGAgent(
 )
 ```
 
-#### Run 🏃
+### Run 🏃
 
 ```python
 from lite_agents.core.message import ChatMessage, ChatRole
