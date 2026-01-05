@@ -18,7 +18,7 @@ from lite_agents.core.message import ChatRole, ChatMessage
 
 load_dotenv()
 
-llm = LiteLLM(model="gpt-5-nano-2025-08-07", api_key=os.getenv("OPENAI_API_KEY"))
+llm = LiteLLM(model="gpt-4.1-nano-2025-04-14", api_key=os.getenv("OPENAI_API_KEY"))
 
 response = llm.generate(
     messages=[
@@ -123,7 +123,7 @@ from pathlib import Path
 import os
 
 # 1. Setup LLM & DB
-llm = LiteLLM(model="gpt-5-nano-2025-08-07", api_key=os.getenv("OPENAI_API_KEY"))
+llm = LiteLLM(model="gpt-4.1-nano-2025-04-14", api_key=os.getenv("OPENAI_API_KEY"))
 vector_db = ChromaDB(
     collection_name="YOUR_COLLCECTION_NAME",
     path=Path("PATH/TO/CHROMA_DB/FOLDER")

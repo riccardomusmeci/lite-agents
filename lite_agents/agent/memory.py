@@ -101,7 +101,7 @@ class ChiefStep:
     reason: str
     agent: str
     raw_response: str
-    expanded_query: str
+    expanded_query: str | None
     usage: LLMUsage | None = None
     
     def to_dict(self) -> dict[str, Any]:
@@ -119,7 +119,7 @@ class ChiefStep:
             reason=data["reason"],
             agent=data["agent"],
             raw_response=data["raw_response"],
-            expanded_query=data.get("expanded_query", ""),
+            expanded_query=data.get("expanded_query"),
             usage=LLMUsage.from_dict(data["usage"]) if data.get("usage") else None,
         )
 
@@ -181,23 +181,25 @@ class AgentMemory:
             )
         )
 
-    def add_chief_step(self, reason: str, agent: str, raw_response: str, expanded_query: str, usage: LLMUsage | None = None) -> None:
+    def add_chief_step(self, reason: str, agent: str, raw_response: str, expanded_query: str | None, usage: LLMUsage | None = None) -> None:
         """Add a chief step to the memory.
         
         Args:
             reason (str): the reasoning behind the routing.
             agent (str): the name of the agent routed to.
             raw_response (str): the output received from the agent.
-            expanded_query (str): the expanded query used for routing.
+            expanded_query (str | None): the expanded query used for routing.
             usage (LLMUsage | None, optional): the usage of the chief LLM. Defaults to None.
         """
-        self.steps.append(ChiefStep(
-            reason=reason,
-            agent=agent,
-            raw_response=raw_response,
-            expanded_query=expanded_query,
-            usage=usage
-        ))
+        self.steps.append(
+            ChiefStep(
+                reason=reason,
+                agent=agent,
+                raw_response=raw_response,
+                expanded_query=expanded_query,
+                usage=usage
+            )
+        )
         
     def add_retry_step(self, message: ChatMessage) -> None:
         """Add a retry step to the memory as a HumanStep.

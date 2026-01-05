@@ -11,6 +11,7 @@ from lite_agents.agent.memory import AgentMemory
 from lite_agents.agent._base import BaseAgent, AgentEventStream, AgentEvent
 from lite_agents.db.db import VectorDB
 from lite_agents.logger import setup_logger
+import time
 
 logger = setup_logger()
 
@@ -71,7 +72,7 @@ class RAGAgent(BaseAgent):
             n_results=self.k,
             threshold=self.threshold
         )
-        
+
         # add retrieval step to memory
         self.memory.add_retrieval_step(
             chunks=results or {}
@@ -83,7 +84,6 @@ class RAGAgent(BaseAgent):
         context_parts = []
         for i, res in enumerate(results):
             content = res.get("content", "")
-            # metadata = res.get("metadata", {})
             # Format metadata if present
             context_parts.append(f"<item_{i+1}>\n{content}\n</item_{i+1}>")
         return "\n".join(context_parts)
@@ -104,9 +104,8 @@ class RAGAgent(BaseAgent):
         # Get the last user message to use as query
         last_message = messages[-1]
         if last_message.role == ChatRole.USER:
-            query = last_message.content
+            query = last_message.content            
             context = self._retrieve_context(query)
-            
             # Augment the message with context
             augmented_content = f"## **Context**\n{context if context else 'EMPTY'}\n\n ## **User Question**\n{query}"
             # Create a new list to avoid modifying the original objects in place if they are reused
@@ -133,7 +132,6 @@ class RAGAgent(BaseAgent):
         self.memory.add_human_step(messages[-1])
         
         messages_for_run = self._prepare_messages(messages)
-           
         if self.stream:
             return self._stream_response(messages_for_run)
         else:
@@ -152,8 +150,8 @@ class RAGAgent(BaseAgent):
         text_deltas = []
         for chunk in streamer:
             if isinstance(chunk, TextResponseDelta):
-                text_deltas.append(chunk)
                 yield chunk
+                text_deltas.append(chunk)
             else:
                 # Ignore tool calls or other types for now in RAGAgent
                 logger.warning("RAGAgent received unexpected chunk type during streaming: %s", type(chunk))

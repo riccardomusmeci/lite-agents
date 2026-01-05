@@ -11,17 +11,26 @@ from lite_agents.agent._base import (
 )
 from lite_agents.core.message import ChatMessage, ChatRole
 from lite_agents.agent.memory import AgentMemory
-from lite_agents.prompts.chief import CHIEF_SYSTEM_PROMPT
+from lite_agents.prompts.chief import (
+    CHIEF_SYSTEM_PROMPT, 
+    CHIEF_SYSTEM_PROMPT_WITH_EXPANSION, 
+    CHIEF_SYSTEM_PROMPT_NO_EXPANSION
+)
 from lite_agents.llm.lite import LiteLLM
 from lite_agents.utils.parse import parse_json_from_keys
 
 logger = logging.getLogger(__name__)
 
-OUTPUT_JSON_KEYS = [
+OUTPUT_JSON_KEYS_WITH_EXPANSION = [
     "route_to",
     "reason",
     "context",
     "expanded_query",
+]
+
+OUTPUT_JSON_KEYS_NO_EXPANSION = [
+    "route_to",
+    "reason",
 ]
 
 ### FAIL REASON CONSTANTS
@@ -40,6 +49,7 @@ class AgentChief(BaseAgent):
         max_retries (int, optional): maximum number of retries for JSON parsing. Defaults to 3.
         stream (bool, optional): whether to stream the responses. Defaults to False.
         output_json_keys (list[str] | None, optional): the list of JSON keys to parse from the LLM response. If None, uses default keys. Defaults to None.
+        query_expansion (bool, optional): whether to use query expansion in routing. Defaults to False.
     """
     def __init__(
         self,
@@ -51,14 +61,19 @@ class AgentChief(BaseAgent):
         system_prompt: str | None = None,
         max_retries: int = 3,
         stream: bool = False,
-        output_json_keys: list[str] | None = None
+        output_json_keys: list[str] | None = None,
+        query_expansion: bool = False
     ) -> None:
         """Initialize the AgentChief."""
+        
+        if system_prompt is None:
+            system_prompt = CHIEF_SYSTEM_PROMPT_WITH_EXPANSION if query_expansion else CHIEF_SYSTEM_PROMPT_NO_EXPANSION
+            
         super().__init__(
             name=name, 
             description=description, 
             llm=llm, 
-            system_prompt=system_prompt or CHIEF_SYSTEM_PROMPT,
+            system_prompt=system_prompt,
             memory=memory, 
             stream=stream
         )
@@ -66,7 +81,11 @@ class AgentChief(BaseAgent):
         self.agents = {agent.name: agent for agent in agents}
         self.agents_info = "\n".join([f"- {name}: {agent.description}" for name, agent in self.agents.items()])
         self.max_retries = max_retries
-        self.output_json_keys = output_json_keys if output_json_keys is not None else OUTPUT_JSON_KEYS
+        
+        if output_json_keys is not None:
+            self.output_json_keys = output_json_keys
+        else:
+            self.output_json_keys = OUTPUT_JSON_KEYS_WITH_EXPANSION if query_expansion else OUTPUT_JSON_KEYS_NO_EXPANSION
         
     def _prepare_messages(self, messages):
         """Prepare the messages for the LLM.
@@ -161,14 +180,14 @@ class AgentChief(BaseAgent):
         self, 
         agent: BaseAgent, 
         messages: list[ChatMessage], 
-        expanded_query: str, 
+        expanded_query: str | None, 
     ) -> AgentEventStream | AgentResponse:
         """Delegate execution to the target agent, handling streaming if enabled and then returning the response. Finally, merges the agent memory into the chief memory.
         
         Args:
             agent (BaseAgent): the target agent to delegate to.
             messages (list[ChatMessage]): the original messages.
-            expanded_query (str): the expanded query to use for the agent.
+            expanded_query (str | None): the expanded query to use for the agent. If None, uses the original message.
             
         Returns:
             AgentEventStream | AgentResponse: the response from the agent based on streaming setting.
@@ -178,8 +197,11 @@ class AgentChief(BaseAgent):
         agent.stream = self.stream
         agent.memory = self.memory
         
-        # Use expanded query for the agent - replace the last message (user request) with the expanded query
-        agent_messages = messages[:-1] + [ChatMessage(role=ChatRole.USER, content=expanded_query)]
+        # Use expanded query for the agent if available, otherwise use original messages
+        if expanded_query:
+            agent_messages = messages[:-1] + [ChatMessage(role=ChatRole.USER, content=expanded_query)]
+        else:
+            agent_messages = messages
         
         # if streaming, use the streaming and recording method
         return agent.run(agent_messages)
