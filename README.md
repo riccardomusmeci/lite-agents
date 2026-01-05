@@ -93,6 +93,13 @@ for chunk in generator:
 print()
 ```
 
+
+### 4. RAG Agent 🗂️
+
+Before going into the RAG agent, go check the [example](examples/rag.md) on how to ingest documents with `lite-agents`.
+
+RAG agent is a specialized agent on retrieval augmented generation.
+
 ### How it works 🧠
 
 1.  **Automatic Tools**: `lite-agents` inspects your Python function, reads types and docstrings, and automatically generates the JSON definition for the LLM.

@@ -18,6 +18,7 @@ dependencies = [
     "loguru>=0.7.3",
     "streamlit",
     "strenum>=0.4.15",
+    "chromadb",
 ]
 
 [project.urls]

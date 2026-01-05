@@ -1,6 +1,6 @@
 from __future__ import annotations
 import json
-from typing import Any, Generator
+from typing import Any, Generator, Union
 from lite_agents.llm.lite import LiteLLM
 from lite_agents.core.tool import Tool
 from lite_agents.core.message import ChatMessage, ChatRole
@@ -14,8 +14,6 @@ from lite_agents.core.response import (
     AgentReachedMaxSteps
 )
 from lite_agents.agent.memory import AgentMemory
-from lite_agents.core.response import LLMUsage
-from typing_extensions import Union
 
 
 # AgentEvent (a tagged union)
@@ -43,6 +41,7 @@ class Agent:
         tools (list[Tool] | None, optional): the list of tools available to the agent. Defaults to None.
         stream (bool, optional): whether to stream the responses. Defaults to False.
         max_iterations (int, optional): the maximum number of iterations to perform. Defaults to 12.
+        memory (AgentMemory | None, optional): the agent memory instance. Defaults to None.
     """
     def __init__(
         self,

@@ -55,7 +55,7 @@ class LiteLLM:
         response: ModelResponse = completion(
             model=self.model,
             api_key=self.api_key,
-            tools=[tool.to_dict() for tool in tools],
+            tools=[tool.to_dict() for tool in tools] if tools else None,
             messages=[message.to_dict() for message in messages],
             stream=False
         )
@@ -102,7 +102,7 @@ class LiteLLM:
         stream = completion(
             model=self.model,
             api_key=self.api_key,
-            tools=[tool.to_dict() for tool in tools],
+            tools=[tool.to_dict() for tool in tools] if tools else None,
             messages=[message.to_dict() for message in messages],
             stream=True,
             stream_options={"include_usage": True}
