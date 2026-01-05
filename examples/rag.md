@@ -17,8 +17,8 @@ Here is how to configure and run a pipeline to ingest Markdown files:
 import os
 from typing import List
 from lite_agents.llm import LiteLLM
-from lite_agents.db import ChromaDB, LiteIngestion
-
+from lite_agents.db import ChromaDB
+from lite_agents.ingestion import LiteIngestion
 # 1. Embedding Configuration 🧠
 # Define the function that generates embeddings (e.g., using OpenAI, Azure, or local models)
 def create_embeddings(texts: List[str]) -> List[List[float]]:

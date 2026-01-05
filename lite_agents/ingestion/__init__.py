@@ -2,7 +2,7 @@ from __future__ import annotations
 import re
 import json
 from pathlib import Path
-from typing import List, Dict, Tuple, Callable, Any
+from typing import List, Dict, Callable, Any
 
 from lite_agents.llm.lite import LiteLLM
 from lite_agents.core.message import ChatMessage, ChatRole
