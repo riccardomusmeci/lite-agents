@@ -10,26 +10,15 @@ from lite_agents.core.response import (
     ToolResult, 
     TextResponseDelta, 
     ToolCallDelta, 
-    LLMUsage,
-    AgentReachedMaxSteps
+    AgentReachedMaxSteps,
 )
 from lite_agents.agent.memory import AgentMemory
-from lite_agents.agent._base import BaseAgent
+from lite_agents.agent._base import (
+    BaseAgent, 
+    AgentEventStream, 
+    AgentResponse
+)
 
-
-# AgentEvent (a tagged union)
-AgentEvent = Union[
-    TextResponseDelta,
-    TextResponse,
-    ToolCall,
-    ToolResult,
-    AgentReachedMaxSteps,
-]
-# Streaming Type
-AgentEventStream = Generator[AgentEvent, None, None]
-
-# Response Type
-AgentResponse = list[AgentEvent]
 
 class Agent(BaseAgent):
     """Base agent class that loops over question -> tool call -> tool execution -> answer.

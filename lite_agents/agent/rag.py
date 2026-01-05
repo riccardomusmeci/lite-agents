@@ -8,19 +8,11 @@ from lite_agents.core.response import (
     LLMUsage
 )
 from lite_agents.agent.memory import AgentMemory
-from lite_agents.agent._base import BaseAgent
+from lite_agents.agent._base import BaseAgent, AgentEventStream, AgentEvent
 from lite_agents.db.db import VectorDB
 from lite_agents.logger import setup_logger
 
 logger = setup_logger()
-
-# RAGAgentEvent (simplified compared to AgentEvent for now)
-RAGAgentEvent = Union[
-    TextResponseDelta,
-    TextResponse,
-]
-# Streaming Type
-RAGAgentEventStream = Generator[RAGAgentEvent, None, None]
 
 class RAGAgent(BaseAgent):
     """RAG Agent that retrieves context from a VectorDB before answering.
@@ -128,14 +120,14 @@ class RAGAgent(BaseAgent):
             
         return messages
 
-    def run(self, messages: list[ChatMessage]) -> RAGAgentEventStream | TextResponse:
+    def run(self, messages: list[ChatMessage]) -> AgentEventStream | TextResponse:
         """Run the RAG agent with the given messages.
     
         Args:
             messages (list[ChatMessage]): the input messages
             
         Returns:
-            RAGAgentEventStream | TextResponse: the streaming generator or full response list
+            AgentEventStream | TextResponse: the streaming generator or full response list
         """
         # Save original message to memory
         self.memory.add_human_step(messages[-1])
@@ -147,14 +139,14 @@ class RAGAgent(BaseAgent):
         else:
             return self._generate_response(messages_for_run)
 
-    def _stream_response(self, messages: list[ChatMessage]) -> RAGAgentEventStream:
+    def _stream_response(self, messages: list[ChatMessage]) -> AgentEventStream:
         """Stream the response from the LLM.
 
         Args:
             messages (list[ChatMessage]): the list of messages to send to the LLM.
 
         Yields:
-            RAGAgentEventStream: a generator yielding response deltas.
+            AgentEventStream: a generator yielding response deltas.
         """
         streamer = self.llm.stream(messages=messages)
         text_deltas = []
