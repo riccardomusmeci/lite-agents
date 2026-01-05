@@ -8,6 +8,7 @@ from lite_agents.core.response import (
     LLMUsage
 )
 from lite_agents.agent.memory import AgentMemory
+from lite_agents.agent._base import BaseAgent
 from lite_agents.db.db import VectorDB
 from lite_agents.logger import setup_logger
 
@@ -21,7 +22,7 @@ RAGAgentEvent = Union[
 # Streaming Type
 RAGAgentEventStream = Generator[RAGAgentEvent, None, None]
 
-class RAGAgent:
+class RAGAgent(BaseAgent):
     """RAG Agent that retrieves context from a VectorDB before answering.
     
     Args:
@@ -50,15 +51,16 @@ class RAGAgent:
         threshold: float = 0.8,
     ) -> None:
         """Initialize the RAGAgent class."""
-        self.llm = llm
+        super().__init__(
+            name=name,
+            description=description,
+            llm=llm,
+            system_prompt=system_prompt,
+            memory=memory,
+            stream=stream
+        )
         self.vector_db = vector_db
         self.embedding_function = embedding_function
-        self.name = name
-        self.description = description
-        self.system_prompt = system_prompt
-        self.stream = stream
-        self.usage: list[LLMUsage] = []
-        self.memory: AgentMemory = memory or AgentMemory()
         self.k = k
         self.threshold = threshold
 
@@ -123,10 +125,7 @@ class RAGAgent:
         if self.system_prompt:
             messages = [ChatMessage(role=ChatRole.SYSTEM, content=self.system_prompt)] + messages
             self.memory.add_system_step(messages[0])
-        
-        for msg in messages:
-            print(f"{msg.role.value.upper()}: {msg.content}\n{'-'*40}")
-        
+            
         return messages
 
     def run(self, messages: list[ChatMessage]) -> RAGAgentEventStream | TextResponse:
