@@ -22,7 +22,7 @@ from lite_agents.core.message import ChatRole, ChatMessage
 
 load_dotenv()
 
-llm = LiteLLM(model="gpt-4o", api_key=os.getenv("OPENAI_API_KEY"))
+llm = LiteLLM(model="gpt-5-nano-2025-08-07", api_key=os.getenv("OPENAI_API_KEY"))
 
 response = llm.generate(
     messages=[ChatMessage(role=ChatRole.USER, content="Hello, who are you?")]
@@ -83,12 +83,17 @@ print("🤖 Agent:", response.content)
 # Enable streaming
 agent.stream = True
 
-generator = agent.run(
-    messages=[ChatMessage(role=ChatRole.USER, content="Book spot 45 at PARK123 for me (User A407031) on Aug 15th 2026.")]
+streamer = agent.run(
+    messages=[
+        ChatMessage(
+            role=ChatRole.USER, 
+            content="Book spot 45 at PARK123 for me (User A407031) on Aug 15th 2026."
+        )
+    ]
 )
 
 print("🤖 Agent: ", end="")
-for chunk in generator:
+for chunk in streamer:
     print(chunk.delta, end="", flush=True)
 print()
 ```
@@ -96,12 +101,72 @@ print()
 
 ### 4. RAG Agent 🗂️
 
-Before going into the RAG agent, go check the [example](examples/rag.md) on how to ingest documents with `lite-agents`.
+Before going into the RAG agent, go check the [example](examples/rag.md) on how to easily ingest documents with `lite-agents` with ChromaDB.
 
-RAG agent is a specialized agent on retrieval augmented generation.
+Once you have your knowledge base ready, you can spin up a `RAGAgent`.
 
-### How it works 🧠
+#### Setup ⚙️
 
-1.  **Automatic Tools**: `lite-agents` inspects your Python function, reads types and docstrings, and automatically generates the JSON definition for the LLM.
-2.  **Agent Loop**: The `Agent` automatically handles the `ToolCall` from the LLM, executes the Python function, and sends the result back to the model.
-3.  **Streaming**: In streaming mode, the agent yields text chunks as they arrive, while handling tool executions silently in the background.
+You need to define your embedding function (must match the one used for ingestion) and connect to the existing Vector DB.
+
+```python
+from lite_agents.llm.lite import LiteLLM
+from lite_agents.agent.rag import RAGAgent
+from lite_agents.db import ChromaDB
+from litellm import embedding
+from pathlib import Path
+import os
+
+# 1. Setup LLM & DB
+llm = LiteLLM(model="gpt-5-nano-2025-08-07", api_key=os.getenv("OPENAI_API_KEY"))
+vector_db = ChromaDB(
+    collection_name="YOUR_COLLCECTION_NAME",
+    path=Path("PATH/TO/CHROMA_DB/FOLDER")
+)
+
+# 2. Define Embedding Function
+def create_embeddings(text: str) -> list[float]:
+    response = embedding(model="text-embedding-3-small", input=[text])
+    return response.data[0]['embedding']
+```
+
+#### Initialize RAG Agent 🤖
+
+```python
+rag_agent = RAGAgent(
+    llm=llm,
+    vector_db=vector_db,
+    embedding_function=create_embeddings,
+    name="Company Policies RAG Agent",
+    description="An agent that answers questions about company policies with RAG technique.",
+    system_prompt="...", # Optional: Use default RAG prompt
+    stream=True, # or False
+    k=5, # number of chunks to retrieve
+    threshold=0.7, # min similarity threhsold between query and retrieved chunks
+)
+```
+
+#### Run 🏃
+
+```python
+from lite_agents.core.message import ChatMessage, ChatRole
+
+response = rag_agent.run(
+    messages=[
+        ChatMessage(
+            role=ChatRole.USER, 
+            content="How do I request remote work?"
+        )
+    ]
+)
+
+# If streaming is enabled
+print("🤖 RAGAgent: ", end="")
+for chunk in response:
+    print(chunk.delta, end="", flush=True)
+
+# If streaming is not enabled
+print(response.content)
+```
+
+
