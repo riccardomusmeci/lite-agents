@@ -16,6 +16,36 @@ class LLMUsage:
     input_tokens: int | None = None
     output_tokens: int | None = None
     time: float | None = None
+    
+    def to_dict(self) -> dict[str, Any]:
+        """Convert the LLMUsage to a dictionary.
+
+        Returns:
+            dict: the dictionary representation of the LLMUsage.
+        """
+        return {
+            "model": self.model,
+            "input_tokens": self.input_tokens,
+            "output_tokens": self.output_tokens,
+            "time": self.time,
+        }
+        
+    @staticmethod
+    def from_dict(data: dict[str, Any]) -> "LLMUsage":
+        """Create an LLMUsage instance from a dictionary.
+
+        Args:
+            data (dict): the dictionary containing usage data.
+            
+        Returns:
+            LLMUsage: the created LLMUsage instance.
+        """
+        return LLMUsage(
+            model=data.get("model"),
+            input_tokens=data.get("input_tokens"),
+            output_tokens=data.get("output_tokens"),
+            time=data.get("time"),
+        )
 
 @dataclass
 class TextResponseDelta:

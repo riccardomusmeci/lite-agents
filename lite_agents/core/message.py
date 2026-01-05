@@ -45,4 +45,24 @@ class ChatMessage:
             message["tool_call_id"] = self.tool_call_id    
         return message
         
+        
+    @staticmethod
+    def from_dict(data: dict) -> "ChatMessage":
+        """Create a ChatMessage from a dictionary.
+
+        Args:
+            data (dict): the dictionary representation of the ChatMessage.
+        
+        Returns:
+            ChatMessage: the ChatMessage object.
+        """
+        return ChatMessage(
+            role=ChatRole(data["role"]),
+            content=data.get("content"),
+            name=data.get("name"),
+            tool_calls=data.get("tool_calls"),
+            tool_call_id=data.get("tool_call_id"),
+            tool_kwargs=data.get("tool_kwargs")
+        )
+            
 

@@ -50,5 +50,7 @@ htmlcov/
 .idea/
 
 # Local tests (root only)
-./test.py
-./test*.py
+/test*.py
+/*.json
+/data/*.json
+chroma_db/
