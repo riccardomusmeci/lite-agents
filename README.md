@@ -21,7 +21,12 @@ load_dotenv()
 llm = LiteLLM(model="gpt-5-nano-2025-08-07", api_key=os.getenv("OPENAI_API_KEY"))
 
 response = llm.generate(
-    messages=[ChatMessage(role=ChatRole.USER, content="Hello, who are you?")]
+    messages=[
+        ChatMessage(
+            role=ChatRole.USER, 
+            content="Hello, who are you?"
+        )
+    ]
 )
 print(response.content)
 ```
@@ -68,7 +73,12 @@ agent = Agent(
 
 ```python
 response = agent.run(
-    messages=[ChatMessage(role=ChatRole.USER, content="Book spot 45 at PARK123 for me (User A407031) on Aug 15th 2026.")]
+    messages=[
+        ChatMessage(
+            role=ChatRole.USER, 
+            content="Book spot 45 at PARK123 for me (User A407031) on Aug 15th 2026."
+        )
+    ]
 )
 print("🤖 Agent:", response.content)
 ```
@@ -93,7 +103,6 @@ for chunk in streamer:
     print(chunk.delta, end="", flush=True)
 print()
 ```
-
 
 ## 4. RAG Agent 🗂️
 
@@ -165,4 +174,49 @@ for chunk in response:
 print(response.content)
 ```
 
+## 5. Multi agents with AgentChief 👮‍♂️
 
+The `AgentChief` acts as an orchestrator that routes user requests to the most appropriate specialized agent based on their descriptions.
+
+### Initialize AgentChief 🤖
+
+First, define the agents you want to orchestrate. For example, a RAG agent for answering questions from documents and a standard agent with tools for performing actions.
+
+Initialize the `AgentChief` by passing the list of agents. The chief will use the `description` of each agent to decide where to route the request.
+
+```python
+from lite_agents.agent import AgentChief
+
+chief = AgentChief(
+    agents=[rag_agent, booking_agent], # Assuming rag_agent and booking_agent are already initialized as shown in previous sections
+    llm=llm,
+    name="Chief Agent",
+    description="Routes requests to specialized agents.",
+    max_retries=3
+)
+```
+
+### Run the Chief 🏃
+
+You can run the chief just like any other agent. It will analyze the user's request, select the best agent, and delegate the task.
+
+```python
+response = chief.run(
+    messages=[
+        ChatMessage(
+            role=ChatRole.USER, 
+            content="I need to book a parking spot for tomorrow."
+        )
+    ]
+)
+
+# The response will come from the delegated agent (e.g., booking_agent)
+print("🤖 Chief:", response.content)
+```
+
+### How it works ℹ️
+
+1. **Routing**: the Chief uses an LLM call to analyze the conversation history and the available agents' descriptions.
+2. **Selection**: it selects the most appropriate agent and generates an "expanded query" to provide full context to the sub-agent.
+3. **Delegation**: the request is passed to the selected agent.
+4. **Response**: the sub-agent's response is returned to the user.
